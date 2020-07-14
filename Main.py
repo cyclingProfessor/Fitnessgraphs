@@ -1,6 +1,7 @@
 import numpy as np
 from scipy import optimize
 import Json as js
+import Display as ds
 import sys
 from itertools import chain, combinations
 from scipy.spatial.distance import hamming
@@ -73,6 +74,7 @@ if __name__ == "__main__":
     result = optimize.linprog(c, A_ub=inequality_constraints, b_ub=ineq_bounds, A_eq=equals_constraints, b_eq=eq_bounds, bounds=boundx, options={'sym_pos':False,'cholesky':False,"presolve":False}, method='interior-point')
     print(np.around(result['x'], 1), result['message'])
 
+
     # Now we add in extra variables and use these to minimise the absolute values of the coefficients.
     # We need as many fake variables as original ones.
     # Each one has two constraints which make sure that it is as least as big as x_i and -x_i - so ...-1.....-1...  and ...1....-1...
@@ -96,8 +98,32 @@ if __name__ == "__main__":
 
     coefficients = ( list(np.nonzero(list(map(int,bin(x)[2:].zfill(coords))))[0]) for x in range(size))
     print ( "\n".join(map(lambda x: str(x[0]) + ": " + str(x[1]), zip(coefficients, np.around(result['x'][0:size], 1)))))
-    #print (list(map(lambda x: ":".join(x), zip(answer, np.around(result['x'][0:size], 1))))
     print(np.around(result['x'][0:size], 1))
     print(np.around(result['x'][-size:], 1))
     print(result['message'])
+
+    # Now we want to find the best binary model.
+    # We can explicitly construct the (low pass filter) magnitude equivalent version up to binary coefficients
+    # Then we trim this to get the minimum sign equivalent network.
+    # The coefficient of x_i * x_j is the fitness value at its indicator minus the fitness values at each of the three proper sub-indicator vectors.
+    # There are way more efficient ways to build this list.
+    coords = len(biology[1])
+    fitness_values = dict(np.array(data)[:,0:2])
+    errors = dict(np.array(data)[:,::2])
+    base = [0] * coords
+
+    binary_coefficients = {tuple(base): fitness_values[tuple(base)]}
+    for first in range(coords):
+        one_var = [0] * coords
+        one_var[first] = 1
+        binary_coefficients[tuple(one_var)] = fitness_values[tuple(one_var)] - fitness_values[tuple(base)]
+        for second in range(first + 1, coords):
+            both_vars = [0] * coords
+            both_vars[first] = 1
+            both_vars[second] = 1
+            binary_coefficients[tuple(both_vars)] = fitness_values[tuple(both_vars)] - fitness_values[tuple(one_var)] - fitness_values[tuple(base)]
+            one_var[first] = 0
+            one_var[second] = 1
+            binary_coefficients[tuple(both_vars)] -= fitness_values[tuple(one_var)]
+    ds.draw_magnitudes(binary_coefficients)
     exit(0)
